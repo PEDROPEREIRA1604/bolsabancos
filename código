@@ -1,0 +1,688 @@
+In [356]:
+import matplotlib.pyplot as plt 
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import roc_auc_score, roc_curve, classification_report,\
+                            accuracy_score, confusion_matrix, auc
+from sklearn import linear_model as lm
+from sklearn.linear_model import LinearRegression
+import statsmodels.api as sm
+from sklearn import datasets,linear_model
+from sklearn.metrics import r2_score,mean_squared_error
+In [ ]:
+C2014=pd.read_csv("Cotações 2014.csv",encoding="latin1",sep=";")
+C2015=pd.read_csv("Cotações 2015.csv",encoding="latin1",sep=";")
+C2016=pd.read_csv("Cotações 2016.csv",encoding="latin1",sep=";")
+C2017=pd.read_csv("Cotações 2017.csv",encoding="latin1",sep=";")
+C2018=pd.read_csv("Cotações 2018.csv",encoding="latin1",sep=";")
+C2019=pd.read_csv("Cotações 2019.csv",encoding="latin1",sep=";")
+C2020=pd.read_csv("Cotações 2020.csv",encoding="latin1",sep=";")
+In [358]:
+BASE=pd.concat([C2014,C2015,C2016,C2017,C2018,C2019,C2020])
+In [ ]:
+BASE=BASE.drop(columns=['PREÇO MÍNIMO','PREÇO DE ABERTURA','PREÇO MÁXIMO',"PREÇO DA MELHOR OFERTA DE VENDA",'PREÇO DA MELHOR OFERTA DE COMPRA','NÚMERO DE DISTRIBUIÇÃO DO PAPEL',"PREÇO MÉDIO",'TIPO DE REGISTRO','CÓDIGO BDI','TPMERC','NOMRES','ESPECIFICAÇÃO DO PAPEL','PRAZOT','MOEDA','NÚMERO DE NEGÓCIOS EFETUADOS COM O PAPEL-','QUANTIDADE TOTAL DE TÍTULOS NEGOCIADOS NESTE PAPEL','PREÇO DE EXERCÍCIO PARA O MERCADO DE OPÇÕES','CÓDIGO DO PAPEL NO SISTEMA ISIN','PREÇO DE EXERCÍCIO EM PONTOS PARA OPÇÕES REFERENCIADAS','INDICADOR DE CORREÇÃO DE PREÇOS','CÓDIGO DO PAPEL NO SISTEMA ISIN',"VOLUME TOTAL DE TÍTULOS NEGOCIADOS NESTE PAPEL",'FATOR DE COTAÇÃO DO PAPEL','DATA DO VENCIMENTO PARA OS MERCADOS DE OPÇÕES'])
+In [361]:
+FiltroBB=BASE["CODNEG"]=="BBAS3"
+FiltroITAÚ=BASE["CODNEG"]=="ITUB4"
+FiltroBRADESCO=BASE["CODNEG"]=="BBDC4"
+FiltroSANTANDER=BASE["CODNEG"]=="SANB11"
+In [362]:
+BB=BASE[FiltroBB]
+BRADESCO=BASE[FiltroBRADESCO]
+ITAU=BASE[FiltroITAÚ]
+SANTANDER=BASE[FiltroSANTANDER]
+In [ ]:
+BRADESCO["DATA DO PREGÃO"]=pd.to_datetime(BRADESCO["DATA DO PREGÃO"],format="%d/%m/%Y")
+BB["DATA DO PREGÃO"]=pd.to_datetime(BB["DATA DO PREGÃO"],format="%d/%m/%Y")
+SANTANDER["DATA DO PREGÃO"]=pd.to_datetime(SANTANDER["DATA DO PREGÃO"],format="%d/%m/%Y")
+ITAU["DATA DO PREGÃO"]=pd.to_datetime(ITAU["DATA DO PREGÃO"],format="%d/%m/%Y")
+In [366]:
+BRADESCO.set_index("DATA DO PREGÃO",inplace=True)
+BB.set_index("DATA DO PREGÃO",inplace=True)
+ITAU.set_index("DATA DO PREGÃO",inplace=True)
+SANTANDER.set_index("DATA DO PREGÃO",inplace=True)
+In [ ]:
+plt.figure(figsize=(15,6))
+plt.plot(BB["PREÇO DO ÚLTIMO NEGÓCIO"],color='yellow')
+plt.plot(BRADESCO["PREÇO DO ÚLTIMO NEGÓCIO"],color='red')
+plt.plot(ITAU["PREÇO DO ÚLTIMO NEGÓCIO"],color='blue')
+plt.plot(SANTANDER["PREÇO DO ÚLTIMO NEGÓCIO"],color='black')
+plt.legend(['BB', 'BRADESCO', 'ITAU',"SANTANDER"], loc=9)
+In [ ]:
+BB["PREÇO FECHAMENTO DO DIA ANTERIOR"]=BB["PREÇO DO ÚLTIMO NEGÓCIO"].shift(+1)
+
+BRADESCO["PREÇO FECHAMENTO DO DIA ANTERIOR"]=BRADESCO["PREÇO DO ÚLTIMO NEGÓCIO"].shift(+1)
+
+SANTANDER["PREÇO FECHAMENTO DO DIA ANTERIOR"]=SANTANDER["PREÇO DO ÚLTIMO NEGÓCIO"].shift(+1)
+
+ITAU["PREÇO FECHAMENTO DO DIA ANTERIOR"]=ITAU["PREÇO DO ÚLTIMO NEGÓCIO"].shift(+1)
+In [ ]:
+BBTREINO=BB[:1300]
+BBTESTE=BB[1300:]
+BRADESCOTREINO=BRADESCO[:1300]
+BRADESCOTESTE=BRADESCO[1300:]
+ITAUTREINO=ITAU[:1300]
+ITAUTESTE=ITAU[1300:]
+SANTANDERTREINO=SANTANDER[:1300]
+SANTANDERTESTE=SANTANDER[1300:]
+In [ ]:
+from sklearn.linear_model import LinearRegression
+BRADESCOTREINO=BRADESCOTREINO.dropna()
+BRADESCOdependente=BRADESCOTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]
+BRADESCOvariável = pd.DataFrame(data={"PREÇO":BRADESCOTREINO["PREÇO FECHAMENTO DO DIA ANTERIOR"]})
+BRADESCOTESTEvariável = pd.DataFrame(data={"PREÇO":BRADESCOTESTE["PREÇO FECHAMENTO DO DIA ANTERIOR"]})
+lr=linear_model.LinearRegression()
+lr.fit(BRADESCOvariável,BRADESCOdependente)
+PrevBRADESCOTREINO=lr.predict(BRADESCOvariável)
+PrevBRADESCOTESTE=lr.predict(BRADESCOTESTEvariável)
+ERROTREINOBRADESCO=((BRADESCOTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevBRADESCOTREINO)**2).mean()
+ERROTESTEBRADESCO=((BRADESCOTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevBRADESCOTESTE)**2).mean()
+print("O erro no treino foi {} e no teste foi {}".format(ERROTREINOBRADESCO, ERROTESTEBRADESCO))
+In [ ]:
+model = sm.OLS(BRADESCOdependente, BRADESCOvariável).fit()
+print_model = model.summary()
+print(print_model)
+In [ ]:
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+plot_acf(BRADESCOTREINO["PREÇO DO ÚLTIMO NEGÓCIO"])
+plt.show()
+In [ ]:
+plot_pacf(BRADESCOTREINO["PREÇO DO ÚLTIMO NEGÓCIO"])
+plt.show()
+In [ ]:
+BRADESCODIFERENCIAÇÃO=np.diff(BRADESCOTREINO["PREÇO DO ÚLTIMO NEGÓCIO"],n=1)
+In [ ]:
+plot_acf(BRADESCODIFERENCIAÇÃO)
+plt.show()
+In [ ]:
+plot_pacf(BRADESCODIFERENCIAÇÃO)
+plt.show()
+In [ ]:
+from statsmodels.tsa.arima_model import ARIMA
+possibilidades=[(3,1,1),(3,2,1),(4,1,1),(4,2,1),(5,1,1),(5,2,1),(6,1,1),(6,2,1),(7,1,1),(7,2,1),(8,1,1),(8,2,1)]
+parametrosBRADESCO=list()
+ERROBRADESCOTESTELISTA=list()
+ERROBRADESCOTREINOLISTA=list()
+for t in possibilidades:
+    arimaBRADESCO=ARIMA(BRADESCOTREINO["PREÇO DO ÚLTIMO NEGÓCIO"],order=(t)).fit()
+    arimaBRADESCOteste=ARIMA(BRADESCOTESTE["PREÇO DO ÚLTIMO NEGÓCIO"],order=(t)).fit(arimaBRADESCO.params)
+    ERROBRADESCOTREINO=(arimaBRADESCO.resid**2).mean()
+    ERROBRADESCOTESTE=(arimaBRADESCOteste.resid**2).mean()
+    parametrosBRADESCO.append(t)
+    ERROBRADESCOTESTELISTA.append(ERROBRADESCOTESTE)
+    ERROBRADESCOTREINOLISTA.append(ERROBRADESCOTREINO)
+TABELADEDECISÃOBRADESCO=pd.DataFrame(data={"Parâmetros":parametrosBRADESCO,"ERROTESTE":ERROBRADESCOTESTELISTA,
+                                           "ERROTREINO":ERROBRADESCOTREINOLISTA})
+In [ ]:
+TABELADEDECISÃOBRADESCO
+In [ ]:
+ESCOLHIDOBRADESCO=ARIMA(BRADESCOTESTE["PREÇO DO ÚLTIMO NEGÓCIO"],order=(8,1,1)).fit()
+In [105]:
+predictBRADESCO=ESCOLHIDOBRADESCO.predict(typ="levels")
+In [ ]:
+predictBRADESCO=arimaBRADESCOteste.predict(typ="levels")
+GRÁFICOBRADESCO = pd.DataFrame(data={"ESPERADO":BRADESCOTESTE["PREÇO DO ÚLTIMO NEGÓCIO"],"ESTIMADO":predictBRADESCO})
+GRÁFICOBRADESCO[100:200].plot() 
+In [ ]:
+from sklearn.tree import DecisionTreeRegressor
+for i in range(1,10):
+    reg=DecisionTreeRegressor(max_depth=i)
+    reg.fit(BRADESCOvariável,BRADESCOdependente)
+    ERROTREINOBRADESCOÁRVORE=((BRADESCOTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]-reg.predict(BRADESCOvariável))**2).mean()
+    ERROTESTEBRADESCOÁRVORE=((BRADESCOTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-reg.predict(BRADESCOTESTEvariável))**2).mean()
+    print("O erro no treino com {} decisões foi {} e no teste foi {}".format(i,ERROTREINOBRADESCOÁRVORE, ERROTESTEBRADESCOÁRVORE))
+In [ ]:
+BBTREINO=BBTREINO.dropna()
+BBdependente=BBTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]
+BBvariável = pd.DataFrame(data={"PREÇO":BBTREINO["PREÇO FECHAMENTO DO DIA ANTERIOR"]})
+BBTESTEvariável = pd.DataFrame(data={"PREÇO":BBTESTE["PREÇO FECHAMENTO DO DIA ANTERIOR"]})
+lr=linear_model.LinearRegression()
+lr.fit(BBvariável,BBdependente)
+PrevBBTREINO=lr.predict(BBvariável)
+PrevBBTESTE=lr.predict(BBTESTEvariável)
+ERROTREINOBB=((BBTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevBBTREINO)**2).mean()
+ERROTESTEBB=((BBTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevBBTESTE)**2).mean()
+print("O erro no treino foi {} e no teste foi {}".format(ERROTREINOBB, ERROTESTEBB))
+In [ ]:
+model = sm.OLS(BBdependente, BBvariável).fit()
+print_model = model.summary()
+print(print_model)
+In [ ]:
+plot_acf(BBTREINO["PREÇO DO ÚLTIMO NEGÓCIO"])
+plt.show()
+In [ ]:
+plot_pacf(BBTREINO["PREÇO DO ÚLTIMO NEGÓCIO"])
+plt.show()
+In [ ]:
+BBDIFERENCIAÇÃO=np.diff(BBTREINO["PREÇO DO ÚLTIMO NEGÓCIO"],n=1)
+plot_acf(BBDIFERENCIAÇÃO)
+plt.show()
+In [ ]:
+plot_pacf(BBDIFERENCIAÇÃO)
+plt.show()
+In [ ]:
+possibilidades=[(3,1,1),(3,2,1),(4,1,1),(4,2,1),(5,1,1),(5,2,1),(6,1,1),(6,2,1),(7,1,1),(7,2,1),(8,1,1),(8,2,1)]
+parametrosBB=list()
+ERROBBTESTELISTA=list()
+ERROBBTREINOLISTA=list()
+for t in possibilidades:
+    arimaBB=ARIMA(BBTREINO["PREÇO DO ÚLTIMO NEGÓCIO"],order=(t)).fit()
+    ERROBBTREINO=(arimaBB.resid**2).mean()
+    arimaBBteste=ARIMA(BBTESTE["PREÇO DO ÚLTIMO NEGÓCIO"],order=(t)).fit(arimaBB.params)
+    ERROBBTESTE=(arimaBBteste.resid**2).mean()
+    parametrosBB.append(t)
+    ERROBBTESTELISTA.append(ERROBBTESTE)
+    ERROBBTREINOLISTA.append(ERROBBTREINO)
+TABELADEDECISÃOBB=pd.DataFrame(data={"Parâmetros":parametrosBB,"ERROTESTE":ERROBBTESTELISTA,
+                                     "ERROTREINO":ERROBBTREINOLISTA})
+In [ ]:
+TABELADEDECISÃOBB
+In [ ]:
+ESCOLHIDOBB=ARIMA(BBTESTE["PREÇO DO ÚLTIMO NEGÓCIO"],order=(8,1,1)).fit()
+predictBB=ESCOLHIDOBB.predict(typ="levels")
+RESÍDUOSBB=predictBB-BBTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]
+In [ ]:
+predictBB=arimaBBteste.predict(typ="levels")
+GRÁFICOBB = pd.DataFrame(data={"ESPERADO":BBTESTE["PREÇO DO ÚLTIMO NEGÓCIO"],"ESTIMADO":predictBB})
+GRÁFICOBB[100:200].plot() 
+In [ ]:
+for i in range(1,10):
+    reg=DecisionTreeRegressor(max_depth=i)
+    reg.fit(BBvariável,BBdependente)
+    ERROTREINOBBÁRVORE=((BBTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]-reg.predict(BBvariável))**2).mean()
+    ERROTESTEBBÁRVORE=((BBTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-reg.predict(BBTESTEvariável))**2).mean()
+    print("O erro no treino com {} decisões foi {} e no teste foi {}".format(i,ERROTREINOBBÁRVORE, ERROTESTEBBÁRVORE))
+In [ ]:
+ITAUTREINO=ITAUTREINO.dropna()
+ITAUdependente=ITAUTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]
+ITAUvariável = pd.DataFrame(data={"PREÇO":ITAUTREINO["PREÇO FECHAMENTO DO DIA ANTERIOR"]})
+ITAUTESTEvariável = pd.DataFrame(data={"PREÇO":ITAUTESTE["PREÇO FECHAMENTO DO DIA ANTERIOR"]})
+lr=linear_model.LinearRegression()
+lr.fit(ITAUvariável,ITAUdependente)
+PrevITAUTREINO=lr.predict(ITAUvariável)
+PrevITAUTESTE=lr.predict(ITAUTESTEvariável)
+ERROTREINOITAU=((ITAUTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevITAUTREINO)**2).mean()
+ERROTESTEITAU=((ITAUTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevITAUTESTE)**2).mean()
+print("O erro no treino foi {} e no teste foi {}".format(ERROTREINOITAU, ERROTESTEITAU))
+In [ ]:
+model = sm.OLS(ITAUdependente, ITAUvariável).fit()
+print_model = model.summary()
+print(print_model)
+In [ ]:
+plot_acf(ITAUTREINO["PREÇO DO ÚLTIMO NEGÓCIO"])
+plt.show()
+In [ ]:
+plot_pacf(ITAUTREINO["PREÇO DO ÚLTIMO NEGÓCIO"])
+plt.show()
+In [ ]:
+ITAUDIFERENCIAÇÃO=np.diff(ITAUTREINO["PREÇO DO ÚLTIMO NEGÓCIO"],n=1)
+plot_acf(ITAUDIFERENCIAÇÃO)
+plt.show()
+In [ ]:
+plot_pacf(ITAUDIFERENCIAÇÃO)
+plt.show()
+In [ ]:
+possibilidades=[(3,1,1),(3,2,1),(4,1,1),(4,2,1),(5,1,1),(5,2,1),(6,1,1),(6,2,1),(7,1,1),(7,2,1),(8,1,1),(8,2,1)]
+melhor=2
+parametrosITAU=list()
+ERROITAUTESTELISTA=list()
+ERROITAUTREINOLISTA=list()
+for t in possibilidades:
+    arimaITAU=ARIMA(ITAUTREINO["PREÇO DO ÚLTIMO NEGÓCIO"],order=(t)).fit()
+    ERROITAUTREINO=(arimaITAU.resid**2).mean()
+    arimaITAUteste=ARIMA(ITAUTESTE["PREÇO DO ÚLTIMO NEGÓCIO"],order=(t)).fit(arimaITAU.params)
+    ERROITAUTESTE=(arimaITAUteste.resid**2).mean()
+    parametrosITAU.append(t)
+    ERROITAUTESTELISTA.append(ERROITAUTESTE)
+    ERROITAUTREINOLISTA.append(ERROITAUTREINO)
+TABELADEDECISÃOITAU=pd.DataFrame(data={"Parâmetros":parametrosITAU,"ERROTESTE":ERROITAUTESTELISTA,
+                                       "ERROTREINO":ERROITAUTREINOLISTA})
+In [ ]:
+TABELADEDECISÃOITAU
+In [ ]:
+ESCOLHIDOITAU=ARIMA(ITAUTESTE["PREÇO DO ÚLTIMO NEGÓCIO"],order=(8,1,1)).fit()
+predictITAU=ESCOLHIDOITAU.predict(typ="levels")
+RESÍDUOSITAU=predictITAU-ITAUTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]
+In [ ]:
+predictITAÚ=arimaITAUteste.predict(typ="levels")
+GRÁFICOITAÚ = pd.DataFrame(data={"ESPERADO":ITAUTESTE["PREÇO DO ÚLTIMO NEGÓCIO"],"ESTIMADO":predictITAÚ})
+GRÁFICOITAÚ[100:200].plot() 
+In [ ]:
+for i in range(1,10):
+    reg=DecisionTreeRegressor(max_depth=i)
+    reg.fit(ITAUvariável,ITAUdependente)
+    ERROTREINOITAUÁRVORE=((ITAUTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]-reg.predict(ITAUvariável))**2).mean()
+    ERROTESTEITAUÁRVORE=((ITAUTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-reg.predict(ITAUTESTEvariável))**2).mean()
+    print("O erro no treino com {} decisões foi {} e no teste foi {}".format(i,ERROTREINOITAUÁRVORE
+                                                                             , ERROTESTEITAUÁRVORE))
+In [ ]:
+SANTANDERTREINO=SANTANDERTREINO.dropna()
+SANTANDERdependente=SANTANDERTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]
+SANTANDERvariável = pd.DataFrame(data={"PREÇO":SANTANDERTREINO["PREÇO FECHAMENTO DO DIA ANTERIOR"]})
+SANTANDERTESTEvariável = pd.DataFrame(data={"PREÇO":SANTANDERTESTE["PREÇO FECHAMENTO DO DIA ANTERIOR"]})
+lr=linear_model.LinearRegression()
+lr.fit(SANTANDERvariável,SANTANDERdependente)
+PrevSANTANDERTREINO=lr.predict(SANTANDERvariável)
+PrevSANTANDERTESTE=lr.predict(SANTANDERTESTEvariável)
+ERROTREINOSANTANDER=((SANTANDERTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevSANTANDERTREINO)**2).mean()
+ERROTESTESANTANDER=((SANTANDERTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevSANTANDERTESTE)**2).mean()
+print("O erro no treino foi {} e no teste foi {}".format(ERROTREINOSANTANDER, ERROTESTESANTANDER))
+In [ ]:
+model = sm.OLS(SANTANDERdependente, SANTANDERvariável).fit()
+print_model = model.summary()
+print(print_model)
+In [ ]:
+plot_acf(SANTANDERTREINO["PREÇO DO ÚLTIMO NEGÓCIO"])
+plt.show()
+In [ ]:
+plot_pacf(SANTANDERTREINO["PREÇO DO ÚLTIMO NEGÓCIO"])
+plt.show()
+In [ ]:
+SANTANDERDIFERENCIAÇÃO=np.diff(SANTANDERTREINO["PREÇO DO ÚLTIMO NEGÓCIO"],n=1)
+plot_acf(SANTANDERDIFERENCIAÇÃO)
+plt.show()
+In [ ]:
+plot_acf(SANTANDERDIFERENCIAÇÃO)
+plt.show()
+In [ ]:
+possibilidades=[(3,1,1),(3,2,1),(4,1,1),(4,2,1),(5,1,1),(5,2,1),(6,1,1),(6,2,1),(7,1,1),(7,2,1),(8,1,1),(8,2,1)]
+melhor=2
+parametrosSANTANDER=list()
+ERROSANTANDERTESTELISTA=list()
+ERROSANTANDERTREINOLISTA=list()
+for t in possibilidades:
+    arimaSANTANDER=ARIMA(SANTANDERTREINO["PREÇO DO ÚLTIMO NEGÓCIO"],order=(t)).fit()
+    ERROSANTANDERTREINO=(arimaSANTANDER.resid**2).mean()
+    arimaSANTANDERteste=ARIMA(SANTANDERTESTE["PREÇO DO ÚLTIMO NEGÓCIO"],order=(t)).fit(arimaSANTANDER.params)
+    ERROSANTANDERTESTE=(arimaSANTANDERteste.resid**2).mean()
+    parametrosSANTANDER.append(t)
+    ERROSANTANDERTESTELISTA.append(ERROSANTANDERTESTE)
+    ERROSANTANDERTREINOLISTA.append(ERROSANTANDERTREINO)
+TABELADEDECISÃOSANTANDER=pd.DataFrame(data={"Parâmetros":parametrosSANTANDER,
+                                            "ERROTESTE":ERROSANTANDERTESTELISTA,"ERROTREINO":ERROSANTANDERTREINOLISTA})
+In [ ]:
+TABELADEDECISÃOSANTANDER
+In [ ]:
+ESCOLHIDOSANTANDER=ARIMA(SANTANDERTESTE["PREÇO DO ÚLTIMO NEGÓCIO"],order=(8,1,1)).fit()
+predictSANTANDER=ESCOLHIDOSANTANDER.predict(typ="levels")
+RESÍDUOSSANTANDER=predictSANTANDER-SANTANDERTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]
+In [ ]:
+for i in range(1,10):
+    reg=DecisionTreeRegressor(max_depth=i)
+    reg.fit(SANTANDERvariável,SANTANDERdependente)
+    ERROTREINOSANTANDERÁRVORE=((SANTANDERTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]-reg.predict(SANTANDERvariável))**2).mean()
+    ERROTESTESANTANDERÁRVORE=((SANTANDERTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-reg.predict
+                               (SANTANDERTESTEvariável))**2).mean()
+    print("O erro no treino com {} decisões foi {} e no teste foi {}".format(i,ERROTREINOSANTANDERÁRVORE
+                                                                             , ERROTESTESANTANDERÁRVORE))
+In [278]:
+Dólar=pd.read_csv("Dólar.csv",encoding="latin1",sep=";")
+In [279]:
+Dólar=Dólar.drop(columns=["Unnamed: 2","Unnamed: 3","Unnamed: 4","Unnamed: 5"])
+In [280]:
+Dólar.rename(columns={'data': 'DATA DO PREGÃO'}, inplace = True)
+In [281]:
+BB2=pd.read_csv("BB.csv",encoding="latin1",sep=",")
+BB2.rename(columns={'DATA DO PREGÃO': 'DATA DO PREGÃO'}, inplace = True)
+In [282]:
+BB2["DATA DO PREGÃO"]=pd.to_datetime(BB2["DATA DO PREGÃO"],format="%Y/%m/%d")
+Dólar["DATA DO PREGÃO"]=pd.to_datetime(Dólar["DATA DO PREGÃO"],format="%d.%m.%Y")
+In [283]:
+BBdólar=pd.merge(Dólar,BB2, on=["DATA DO PREGÃO"], how='outer')
+In [285]:
+BBdólar=BBdólar.drop(columns=["VOLUME TOTAL DE TÃTULOS NEGOCIADOS NESTE PAPEL","CODNEG"])
+In [ ]:
+BB3=BBdólar.dropna()
+In [287]:
+BB3.rename(columns={'PREÃO DO ÃLTIMO NEGÃCIO': 'PREÇO DO ÚLTIMO NEGÓCIO'}, inplace = True)
+In [ ]:
+BB3["Dólar anterior"]=BB3["dólar"].shift(-1)
+BB3["Dólar anterior 2 dias"]=BB3["Dólar anterior"].shift(-1)
+In [ ]:
+BB3["Dólar anterior 2 dias"] = BB3["Dólar anterior 2 dias"].str.replace(',', '.')
+BB3["Dólar anterior"] = BB3["Dólar anterior"].str.replace(',', '.')
+In [ ]:
+BB3["Dólar anterior 2 dias"]=BB3["Dólar anterior 2 dias"].astype(float)
+BB3["Dólar anterior"]=BB3["Dólar anterior"].astype(float)
+In [ ]:
+BB3["Variação Dólar"]=(BB3["Dólar anterior"]-BB3["Dólar anterior 2 dias"])/BB3["Dólar anterior 2 dias"]
+BB3["%Variação Dólar"]=BB3["Variação Dólar"]*100
+In [295]:
+BB3=BB3.dropna()
+In [297]:
+BB4=BB3.drop(columns=["dólar","Variação Dólar","Dólar anterior","Dólar anterior 2 dias"])
+In [298]:
+BB4["PREÇO FECHAMENTO DO DIA ANTERIOR"]=BB4["PREÇO DO ÚLTIMO NEGÓCIO"].shift(-1)
+BB4=BB4.dropna()
+In [ ]:
+BB4TREINO=BB4[429:]
+BB4TESTE=BB4[:429]
+BB4TREINO=BB4TREINO.dropna()
+BB4dependente=BB4TREINO["PREÇO DO ÚLTIMO NEGÓCIO"]
+BB4variável = pd.DataFrame(data={"PREÇO":BB4TREINO["PREÇO FECHAMENTO DO DIA ANTERIOR"],"Dólar":BB4TREINO["%Variação Dólar"]})
+BB4TESTEvariável = pd.DataFrame(data={"PREÇO":BB4TESTE["PREÇO FECHAMENTO DO DIA ANTERIOR"],"Dólar":BB4TESTE["%Variação Dólar"]})
+lr=linear_model.LinearRegression()
+lr.fit(BB4variável,BB4dependente)
+PrevBB4TREINO=lr.predict(BB4variável)
+ERROTREINOBB4=((BB4TREINO["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevBB4TREINO)**2).mean()
+PrevBB4TESTE=lr.predict(BB4TESTEvariável)
+ERROTESTEBB4=((BB4TESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevBB4TESTE)**2).mean()
+print("O erro no treino foi {} e no teste foi {}".format(ERROTREINOBB4, ERROTESTEBB4))
+In [ ]:
+model = sm.OLS(BB4dependente, BB4variável).fit()
+print_model = model.summary()
+print(print_model)
+In [ ]:
+PrevBB4=lr.predict(BB4TESTEvariável)
+ERROTESTEBB4=((BB4TESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevBB4)**2).mean()
+ERROTESTEBB4
+In [177]:
+#Importação refeita (base foi alterada no excel para que importação fosse mais rápida)
+C2014V=pd.read_csv("Cotações 2014V.csv",encoding="latin1",sep=";")
+C2015V=pd.read_csv("Cotações 2015V.csv",encoding="latin1",sep=";")
+C2016V=pd.read_csv("Cotações 2016V.csv",encoding="latin1",sep=";")
+C2017V=pd.read_csv("Cotações 2017V.csv",encoding="latin1",sep=";")
+C2018V=pd.read_csv("Cotações 2018V.csv",encoding="latin1",sep=";")
+C2019V=pd.read_csv("Cotações 2019V.csv",encoding="latin1",sep=";")
+C2020V=pd.read_csv("Cotações 2020V.csv",encoding="latin1",sep=";")
+In [180]:
+BASEV=pd.concat([C2014V,C2015V,C2016V,C2017V,C2018V,C2019V,C2020V])
+In [204]:
+FiltroBBV=BASEV["CODNEG"]=="BBAS3"
+FiltroITAÚV=BASEV["CODNEG"]=="ITUB4"
+FiltroBRADESCOV=BASEV["CODNEG"]=="BBDC4"
+FiltroSANTANDERV=BASEV["CODNEG"]=="SANB11"
+In [210]:
+BBV=BASEV[FiltroBBV]
+BRADESCOV=BASEV[FiltroBRADESCOV]
+ITAUV=BASEV[FiltroITAÚV]
+SANTANDERV=BASEV[FiltroSANTANDERV]
+In [ ]:
+BRADESCOV["DATA DO PREGÃO2"]=pd.to_datetime(BRADESCOV["DATA DO PREGÃO"],format="%d/%m/%Y")
+BBV["DATA DO PREGÃO2"]=pd.to_datetime(BBV["DATA DO PREGÃO"],format="%d/%m/%Y")
+ITAUV["DATA DO PREGÃO2"]=pd.to_datetime(ITAUV["DATA DO PREGÃO"],format="%d/%m/%Y")
+SANTANDERV["DATA DO PREGÃO2"]=pd.to_datetime(SANTANDERV["DATA DO PREGÃO"],format="%d/%m/%Y")
+In [223]:
+BBV=BBV.drop(columns=["DATA DO PREGÃO"])
+BRADESCOV=BRADESCOV.drop(columns=["DATA DO PREGÃO"])
+ITAUV=ITAUV.drop(columns=["DATA DO PREGÃO"])
+SANTANDERV=SANTANDERV.drop(columns=["DATA DO PREGÃO"])
+In [224]:
+BRADESCOV.rename(columns={'DATA DO PREGÃO2': 'DATA DO PREGÃO'}, inplace = True)
+BBV.rename(columns={'DATA DO PREGÃO2': 'DATA DO PREGÃO'}, inplace = True)
+SANTANDERV.rename(columns={'DATA DO PREGÃO2': 'DATA DO PREGÃO'}, inplace = True)
+ITAUV.rename(columns={'DATA DO PREGÃO2': 'DATA DO PREGÃO'}, inplace = True)
+In [225]:
+BBV.set_index("DATA DO PREGÃO",inplace=True)
+BRADESCOV.set_index("DATA DO PREGÃO",inplace=True)
+ITAUV.set_index("DATA DO PREGÃO",inplace=True)
+SANTANDERV.set_index("DATA DO PREGÃO",inplace=True)
+In [ ]:
+BBV["PREÇO DO ÚLTIMO NEGÓCIO"]=BBV["PREÇO DO ÚLTIMO NEGÓCIO"]/100
+
+BRADESCOV["PREÇO DO ÚLTIMO NEGÓCIO"]=BRADESCOV["PREÇO DO ÚLTIMO NEGÓCIO"]/100
+
+SANTANDERV["PREÇO DO ÚLTIMO NEGÓCIO"]=SANTANDERV["PREÇO DO ÚLTIMO NEGÓCIO"]/100
+
+ITAUV["PREÇO DO ÚLTIMO NEGÓCIO"]=ITAUV["PREÇO DO ÚLTIMO NEGÓCIO"]/100
+In [ ]:
+BBV["PREÇO FECHAMENTO DO DIA ANTERIOR"]=BBV["PREÇO DO ÚLTIMO NEGÓCIO"].shift(+1)
+
+BRADESCOV["PREÇO FECHAMENTO DO DIA ANTERIOR"]=BRADESCOV["PREÇO DO ÚLTIMO NEGÓCIO"].shift(+1)
+
+SANTANDERV["PREÇO FECHAMENTO DO DIA ANTERIOR"]=SANTANDERV["PREÇO DO ÚLTIMO NEGÓCIO"].shift(+1)
+
+ITAUV["PREÇO FECHAMENTO DO DIA ANTERIOR"]=ITAUV["PREÇO DO ÚLTIMO NEGÓCIO"].shift(+1)
+In [ ]:
+BBV["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"]=BBV["Quantidade (em milhares)"].shift(+1)
+
+BRADESCOV["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"]=BRADESCOV["Quantidade (em milhares)"].shift(+1)
+
+SANTANDERV["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"]=SANTANDERV["Quantidade (em milhares)"].shift(+1)
+
+ITAUV["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"]=ITAUV["Quantidade (em milhares)"].shift(+1)
+In [ ]:
+BRADESCOV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'] = BRADESCOV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'].str.replace(',', '.')
+BBV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'] = BBV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'].str.replace(',', '.')
+ITAUV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'] = ITAUV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'].str.replace(',', '.')
+SANTANDERV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'] = SANTANDERV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'].str.replace(',', '.')
+In [ ]:
+BRADESCOV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)']=BRADESCOV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'].astype(float)
+ITAUV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)']=ITAUV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'].astype(float)
+SANTANDERV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)']=SANTANDERV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'].astype(float)
+BBV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)']=BBV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'].astype(float)
+In [ ]:
+BRADESCOV=BRADESCOV.dropna()
+BRADESCOVTREINO=BRADESCOV[0:1300]
+BRADESCOVTESTE=BRADESCOV[1300:]
+BRADESCOVdependente=BRADESCOVTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]
+BRADESCOVvariável = pd.DataFrame(data={"PREÇO":BRADESCOVTREINO["PREÇO FECHAMENTO DO DIA ANTERIOR"],
+                                 "Volume":BRADESCOVTREINO["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"]})
+BRADESCOVTESTEvariável = pd.DataFrame(data={"PREÇO":BRADESCOVTESTE["PREÇO FECHAMENTO DO DIA ANTERIOR"],
+                                      "Volume":BRADESCOVTESTE["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"]})
+lr=linear_model.LinearRegression()
+lr.fit(BRADESCOVvariável,BRADESCOVdependente)
+PrevBRADESCOVTREINO=lr.predict(BRADESCOVvariável)
+ERROTREINOBRADESCOV=((BRADESCOVTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevBRADESCOVTREINO)**2).mean()
+PrevBRADESCOVTESTE=lr.predict(BRADESCOVTESTEvariável)
+ERROTESTEBRADESCOV=((BRADESCOVTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevBRADESCOVTESTE)**2).mean()
+print("O erro no treino foi {} e no teste foi {}".format(ERROTREINOBRADESCOV, ERROTESTEBRADESCOV))
+In [ ]:
+model = sm.OLS(BRADESCOVdependente, BRADESCOVvariável).fit()
+print_model = model.summary()
+print(print_model)
+In [ ]:
+BBV=BBV.dropna()
+BBVTREINO=BBV[0:1300]
+BBVTESTE=BBV[1300:]
+BBVdependente=BBVTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]
+BBVvariável = pd.DataFrame(data={"PREÇO":BBVTREINO["PREÇO FECHAMENTO DO DIA ANTERIOR"],
+                                 "Volume":BBVTREINO["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"]})
+BBVTESTEvariável = pd.DataFrame(data={"PREÇO":BBVTESTE["PREÇO FECHAMENTO DO DIA ANTERIOR"],
+                                      "Volume":BBVTESTE["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"]})
+lr=linear_model.LinearRegression()
+lr.fit(BBVvariável,BBVdependente)
+PrevBBVTREINO=lr.predict(BBVvariável)
+ERROTREINOBBV=((BBVTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevBBVTREINO)**2).mean()
+PrevBBVTESTE=lr.predict(BBVTESTEvariável)
+ERROTESTEBBV=((BBVTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevBBVTESTE)**2).mean()
+print("O erro no treino foi {} e no teste foi {}".format(ERROTREINOBBV, ERROTESTEBBV))
+In [ ]:
+model = sm.OLS(BBVdependente, BBVvariável).fit()
+print_model = model.summary()
+print(print_model)
+In [ ]:
+ITAUV=ITAUV.dropna()
+ITAUVTREINO=ITAUV[0:1300]
+ITAUVTESTE=ITAUV[1300:]
+ITAUVdependente=ITAUVTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]
+ITAUVvariável = pd.DataFrame(data={"PREÇO":ITAUVTREINO["PREÇO FECHAMENTO DO DIA ANTERIOR"],
+                                 "Volume":ITAUVTREINO["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"]})
+ITAUVTESTEvariável = pd.DataFrame(data={"PREÇO":ITAUVTESTE["PREÇO FECHAMENTO DO DIA ANTERIOR"],
+                                      "Volume":ITAUVTESTE["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"]})
+lr=linear_model.LinearRegression()
+lr.fit(ITAUVvariável,ITAUVdependente)
+PrevITAUVTREINO=lr.predict(ITAUVvariável)
+ERROTREINOITAUV=((ITAUVTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevITAUVTREINO)**2).mean()
+PrevITAUVTESTE=lr.predict(ITAUVTESTEvariável)
+ERROTESTEITAUV=((ITAUVTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevITAUVTESTE)**2).mean()
+print("O erro no treino foi {} e no teste foi {}".format(ERROTREINOITAUV, ERROTESTEITAUV))
+In [ ]:
+ITAUV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)2']=ITAUV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'].astype(float)
+SANTANDERV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)2']=SANTANDERV['QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'].astype(float)
+ITAUV=ITAUV.drop(columns=["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"])
+SANTANDERV=SANTANDERV.drop(columns=["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"])
+SANTANDERV.rename(columns={'QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)2': 'QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'}, inplace = True)
+ITAUV.rename(columns={'QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)2': 'QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)'}, inplace = True)
+In [ ]:
+model = sm.OLS(ITAUVdependente, ITAUVvariável).fit()
+print_model = model.summary()
+print(print_model)
+In [ ]:
+SANTANDERV=SANTANDERV.dropna()
+SANTANDERVTREINO=SANTANDERV[0:1300]
+SANTANDERVTESTE=SANTANDERV[1300:]
+SANTANDERVdependente=SANTANDERVTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]
+SANTANDERVvariável = pd.DataFrame(data={"PREÇO":SANTANDERVTREINO["PREÇO FECHAMENTO DO DIA ANTERIOR"],
+                                 "Volume":SANTANDERVTREINO
+                                        ["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"]})
+SANTANDERVTESTEvariável = pd.DataFrame(data={"PREÇO":SANTANDERVTESTE["PREÇO FECHAMENTO DO DIA ANTERIOR"],
+                                      "Volume":SANTANDERVTESTE
+                                             ["QUANTIDADE DE PAPÉIS NEGOCIADOS NO DIA ANTERIOR(EM MILHARES)"]})
+lr=linear_model.LinearRegression()
+lr.fit(SANTANDERVvariável,SANTANDERVdependente)
+PrevSANTANDERVTREINO=lr.predict(SANTANDERVvariável)
+ERROTREINOSANTANDERV=((SANTANDERVTREINO["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevSANTANDERVTREINO)**2).mean()
+PrevSANTANDERVTESTE=lr.predict(SANTANDERVTESTEvariável)
+ERROTESTESANTANDERV=((SANTANDERVTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]-PrevSANTANDERVTESTE)**2).mean()
+print("O erro no treino foi {} e no teste foi {}".format(ERROTREINOSANTANDERV, ERROTESTESANTANDERV))
+In [ ]:
+model = sm.OLS(SANTANDERVdependente, SANTANDERVvariável).fit()
+print_model = model.summary()
+print(print_model)
+In [ ]:
+predictBRADESCO[181:304].plot(color='red')
+BRADESCOTESTE["PREÇO DO ÚLTIMO NEGÓCIO"][181:304].plot(color='blue')
+plt.legend(['previsto','real'], loc=9)
+In [ ]:
+predictBB[181:304].plot(color='red')
+BBTESTE["PREÇO DO ÚLTIMO NEGÓCIO"][181:304].plot(color='blue')
+plt.legend(['previsto','real'], loc=9)
+In [ ]:
+predictITAU[181:304].plot(color='red')
+ITAUTESTE["PREÇO DO ÚLTIMO NEGÓCIO"][181:304].plot(color='blue')
+plt.legend(['previsto','real'], loc=9)
+In [ ]:
+predictSANTANDER[181:304].plot(color='red')
+SANTANDERTESTE["PREÇO DO ÚLTIMO NEGÓCIO"][181:304].plot(color='blue')
+plt.legend(['previsto','real'], loc=9)
+In [381]:
+RESÍDUOSBRADESCO=predictBRADESCO-BRADESCOTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]
+In [ ]:
+RESÍDUOSBRADESCO.describe()
+In [ ]:
+RESÍDUOSBRADESCO.plot(label="erro")
+plt.legend(loc="upper left")
+In [ ]:
+RESÍDUOSBRADESCO.plot(kind="kde")
+In [ ]:
+RESÍDUOSBRADESCO.hist()
+In [ ]:
+import seaborn as sns
+
+
+ax = sns.boxplot(x=RESÍDUOSBRADESCO)
+In [ ]:
+RESÍDUOSBB=predictBB-BBTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]
+In [ ]:
+RESÍDUOSBB.describe()
+In [ ]:
+RESÍDUOSBB.plot(label="erro")
+plt.legend(loc="upper left")
+In [ ]:
+RESÍDUOSBB.plot(kind="kde")
+In [ ]:
+RESÍDUOSBB.hist()
+In [ ]:
+ax = sns.boxplot(x=RESÍDUOSBB)
+In [ ]:
+RESÍDUOSITAU=predictITAU-ITAUTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]
+In [ ]:
+RESÍDUOSITAU.describe()
+In [ ]:
+RESÍDUOSITAU.plot(label="erro")
+plt.legend(loc="upper left")
+In [ ]:
+RESÍDUOSITAU.plot(kind="kde")
+In [ ]:
+RESÍDUOSITAU.hist()
+In [ ]:
+ax = sns.boxplot(x=RESÍDUOSITAU)
+In [ ]:
+RESÍDUOSSANTANDER=predictSANTANDER-SANTANDERTESTE["PREÇO DO ÚLTIMO NEGÓCIO"]
+In [ ]:
+RESÍDUOSSANTANDER.describe()
+In [ ]:
+RESÍDUOSSANTANDER.plot(label="erro")
+plt.legend(loc="upper left")
+In [ ]:
+RESÍDUOSSANTANDER.plot(kind="kde")
+In [ ]:
+RESÍDUOSSANTANDER.hist()
+In [ ]:
+ax = sns.boxplot(x=RESÍDUOSSANTANDER)
+In [139]:
+GRÁFICODEERROS = pd.DataFrame(data={"BRADESCO":RESÍDUOSBRADESCO,"BB":RESÍDUOSBB,"ITAÚ":RESÍDUOSITAU,"SANTANDER":RESÍDUOSSANTANDER})
+In [ ]:
+plt.figure(figsize=(15,6))
+plt.plot(GRÁFICODEERROS["BB"],color='yellow')
+plt.plot(GRÁFICODEERROS["BRADESCO"],color='red')
+plt.plot(GRÁFICODEERROS["ITAÚ"],color='blue')
+plt.plot(GRÁFICODEERROS["SANTANDER"],color='black')
+plt.legend(['BB', 'BRADESCO', 'ITAU',"SANTANDER"], loc=9)
+In [ ]:
+plt.figure(figsize=(15,6))
+plt.plot(GRÁFICODEERROS[222:275]["BB"],color='yellow')
+plt.plot(GRÁFICODEERROS[222:275]["BRADESCO"],color='red')
+plt.plot(GRÁFICODEERROS[222:275]["ITAÚ"],color='blue')
+plt.plot(GRÁFICODEERROS[222:275]["SANTANDER"],color='black')
+plt.legend(['BB', 'BRADESCO', 'ITAU',"SANTANDER"], loc=9)
+In [ ]:
+plt.figure(figsize=(15,6))
+plt.plot(BB["PREÇO DO ÚLTIMO NEGÓCIO"],color='yellow')
+plt.legend(['BB'], loc=9)
+In [ ]:
+BB["PREÇO DO ÚLTIMO NEGÓCIO"].describe()
+In [ ]:
+BB["PREÇO DO ÚLTIMO NEGÓCIO"].hist()
+In [ ]:
+BB.loc[(BB["PREÇO DO ÚLTIMO NEGÓCIO"])== 12.700000]
+In [ ]:
+BB.loc[(BB["PREÇO DO ÚLTIMO NEGÓCIO"])== 55.180000]
+In [ ]:
+plt.figure(figsize=(15,6))
+plt.plot(BRADESCO["PREÇO DO ÚLTIMO NEGÓCIO"],color='red')
+plt.legend(['BRADESCO'], loc=9)
+In [ ]:
+BRADESCO["PREÇO DO ÚLTIMO NEGÓCIO"].describe()
+In [ ]:
+BRADESCO.loc[(BRADESCO["PREÇO DO ÚLTIMO NEGÓCIO"])== 46.30]
+In [ ]:
+BRADESCO.loc[(BRADESCO["PREÇO DO ÚLTIMO NEGÓCIO"])== 16.95]
+In [ ]:
+BRADESCO["PREÇO DO ÚLTIMO NEGÓCIO"].hist()
+In [ ]:
+plt.figure(figsize=(15,6))
+plt.plot(ITAU["PREÇO DO ÚLTIMO NEGÓCIO"],color='blue')
+plt.legend(['ITAU'], loc=9)
+In [ ]:
+ITAU["PREÇO DO ÚLTIMO NEGÓCIO"].describe()
+In [ ]:
+ITAU["PREÇO DO ÚLTIMO NEGÓCIO"].argmax()
+In [ ]:
+ITAU["PREÇO DO ÚLTIMO NEGÓCIO"].argmin()
+In [ ]:
+ITAU["PREÇO DO ÚLTIMO NEGÓCIO"].hist()
+In [ ]:
+plt.figure(figsize=(15,6))
+plt.plot(SANTANDER["PREÇO DO ÚLTIMO NEGÓCIO"],color='black')
+plt.legend(['SANTANDER'], loc=9)
+In [ ]:
+SANTANDER["PREÇO DO ÚLTIMO NEGÓCIO"].describe()
+In [667]:
+COMPARATIVO=pd.DataFrame(data={"BANCO":["SANTANDER","BB","ITAÚ","BRADESCO"],"Preço 21/02/2020":[SANTANDER["PREÇO DO ÚLTIMO NEGÓCIO"][1518],BB["PREÇO DO ÚLTIMO NEGÓCIO"][1518],ITAU["PREÇO DO ÚLTIMO NEGÓCIO"][1518],BRADESCO["PREÇO DO ÚLTIMO NEGÓCIO"][1518]],"Preço 30/12/2020":[SANTANDER["PREÇO DO ÚLTIMO NEGÓCIO"][1730],BB["PREÇO DO ÚLTIMO NEGÓCIO"][1730],ITAU["PREÇO DO ÚLTIMO NEGÓCIO"][1730],BRADESCO["PREÇO DO ÚLTIMO NEGÓCIO"][1730]] })
+In [ ]:
+COMPARATIVO["PERCENTUAL"]=100*COMPARATIVO["Preço 30/12/2020"]/COMPARATIVO["Preço 21/02/2020"]
+COMPARATIVO
+In [ ]:
+SANTANDER["PREÇO DO ÚLTIMO NEGÓCIO"].describe()
+In [ ]:
+SANTANDER["PREÇO DO ÚLTIMO NEGÓCIO"].hist()
+In [ ]:
+SANTANDER["PREÇO DO ÚLTIMO NEGÓCIO"].argmax()
+In [ ]:
+SANTANDER["PREÇO DO ÚLTIMO NEGÓCIO"].argmin()
+In [685]:
+Tabeladecorrelação=pd.DataFrame(data={"Santander":SANTANDER["PREÇO DO ÚLTIMO NEGÓCIO"],"BB":BB["PREÇO DO ÚLTIMO NEGÓCIO"],"ITAÚ":ITAU["PREÇO DO ÚLTIMO NEGÓCIO"],"BRADESCO":BRADESCO["PREÇO DO ÚLTIMO NEGÓCIO"]})
+Tabeladecorrelação.corr()
